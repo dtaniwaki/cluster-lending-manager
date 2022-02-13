@@ -3,17 +3,22 @@ kind: LendingConfig
 metadata:
   name: LendingConfig-sample
 spec:
+  targets:
+  - kind: Deployment
+    apiVersion: apps/v1
+  - kind: Rollout
+    apiVersion: argoproj.io/v1alpha1
   timezone: "Asia/Tokyo"
-  schedules:
-  - start:
-      hours: "10:00"
-      dayOfWeek: "Friday"
-    end:
-      time: "20:00"
-      dayOfWeek: "Friday"
-  - start:
-      time: "07:00"
-      dayOfWeek: "Satday"
-    end:
-      time: "23:59"
-      dayOfWeek: "Sunday"
+  schedule:
+    default:
+      hours:
+      - start: "10:00"
+        end: "20:00"
+    friday:
+      hours:
+      - start: "10:00"
+        end: "17:00" # Happy Friday!
+    saturday:
+      hours: [] # Ofcourse, no work!
+    sunday:
+      hours: [] # Ofcourse, no work!
