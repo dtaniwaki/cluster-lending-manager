@@ -85,6 +85,10 @@ docker-build: test ## Build docker image with the manager.
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
+.PHONY: kind-load
+kind-load: docker-build ## Load docker image into kind cluster
+	kind load docker-image ${IMG}
+
 ##@ Deployment
 
 ifndef ignore-not-found
