@@ -17,14 +17,29 @@ limitations under the License.
 package controllers
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/robfig/cron/v3"
+	"k8s.io/apimachinery/pkg/types"
 )
 
+type LendingEvent string
+
+const (
+	LendingStart LendingEvent = "LendingStart"
+	LendingEnd   LendingEvent = "LendingEnd"
+)
+
+type CronItem struct {
+	Cron string
+	Job  cron.Job
+}
+
 type Cron struct {
-	cron *cron.Cron
-	lock sync.RWMutex
+	cron    *cron.Cron
+	entries map[string][]cron.EntryID
+	lock    sync.RWMutex
 }
 
 func NewCron() *Cron {
@@ -32,6 +47,40 @@ func NewCron() *Cron {
 		cron: cron.New(),
 		lock: sync.RWMutex{},
 	}
+}
+
+func (c *Cron) Add(namespacedName types.NamespacedName, cronItems []CronItem) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	resourceName := getResourceEntryName(namespacedName)
+	entries, ok := c.entries[resourceName]
+	if !ok {
+		entries = []cron.EntryID{}
+	}
+	for _, item := range cronItems {
+		entryId, err := c.cron.AddJob(item.Cron, item.Job)
+		if err != nil {
+			return err
+		}
+		entries = append(entries, entryId)
+	}
+	c.entries[resourceName] = entries
+	return nil
+}
+
+func (c *Cron) Clear(namespacedName types.NamespacedName) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	resourceName := getResourceEntryName(namespacedName)
+	entries, ok := c.entries[resourceName]
+	if ok && entries != nil {
+		for entryId := range entries {
+			c.cron.Remove(cron.EntryID(entryId))
+		}
+	}
+	delete(c.entries, resourceName)
 }
 
 func (c *Cron) Start() {
@@ -46,4 +95,8 @@ func (c *Cron) Stop() {
 	defer c.lock.Unlock()
 
 	c.cron.Stop()
+}
+
+func getResourceEntryName(namespacedName types.NamespacedName) string {
+	return fmt.Sprintf("%s/%s", namespacedName.Namespace, namespacedName.Name)
 }
