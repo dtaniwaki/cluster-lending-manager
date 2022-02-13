@@ -76,7 +76,7 @@ Now, deploy the samples.
 $ make deploy-samples
 ```
 
-You will see sample HPA and deployment in the current context, maybe `default` depending on your env. The HPA resource gets updated periodically by the CronHPA.
+You will see sample Deployment and deployment in the current context, maybe `default` depending on your env. The Deployment resource gets updated periodically by the ClusterLendingManager.
 
 ## Contributing
 
