@@ -1,0 +1,16 @@
+domain: dtaniwaki.github.com
+layout:
+- go.kubebuilder.io/v3
+projectName: cluster-lending-manager
+repo: dtaniwaki/cluster-lending-manager
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: dtaniwaki.github.com
+  group: clusterlendingmanager
+  kind: LendingSchedule
+  path: dtaniwaki/cluster-lending-manager/api/v1alpha1
+  version: v1alpha1
+version: "3"
