@@ -1,7 +1,7 @@
 apiVersion: clusterlendingmanager.dtaniwaki.github.com/v1alpha1
 kind: LendingConfig
 metadata:
-  name: LendingConfig-sample
+  name: lending-config-sample
 spec:
   targets:
   - kind: Deployment
