@@ -19,10 +19,12 @@ package controllers
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	clusterlendingmanagerv1alpha1 "dtaniwaki/cluster-lending-manager/api/v1alpha1"
 )
@@ -30,8 +32,10 @@ import (
 // LendingConfigReconciler reconciles a LendingConfig object
 type LendingConfigReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Cron *Cron
 }
+
+const finalizerName = "clusterlendingmanager.dtaniwaki.github.com/finalizer"
 
 //+kubebuilder:rbac:groups=clusterlendingmanager.dtaniwaki.github.com,resources=LendingConfigs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=clusterlendingmanager.dtaniwaki.github.com,resources=LendingConfigs/status,verbs=get;update;patch
@@ -49,9 +53,49 @@ type LendingConfigReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.0/pkg/reconcile
 func (r *LendingConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	// Fetch the LendingConfig instance.
+	logger.Info("Fetch LendingConfig")
+	config := &LendingConfig{}
+	err := r.Get(ctx, req.NamespacedName, config.ToCompatible())
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, err
+	}
+
+	// Handle deleted resources.
+	if !config.ObjectMeta.DeletionTimestamp.IsZero() {
+		if controllerutil.ContainsFinalizer(config.ToCompatible(), finalizerName) {
+			logger.Info("Clear schedules")
+			if err := config.ClearSchedules(ctx, r); err != nil {
+				logger.Error(err, "Failed to clear schedules")
+			}
+
+			controllerutil.RemoveFinalizer(config.ToCompatible(), finalizerName)
+			if err := r.Update(ctx, config.ToCompatible()); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+		return reconcile.Result{}, nil
+	}
+
+	// Set finalizer.
+	if !controllerutil.ContainsFinalizer(config.ToCompatible(), finalizerName) {
+		logger.Info("Set finalizer")
+		config.ObjectMeta.Finalizers = append(config.ObjectMeta.Finalizers, finalizerName)
+		if err := r.Update(ctx, config.ToCompatible()); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
+	// Update the schedules.
+	logger.Info("Update schedules")
+	if err := config.UpdateSchedules(ctx, r); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }

@@ -78,9 +78,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	cron := controllers.NewCron()
+	cron.Start()
+
+	defer func() {
+		cron.Stop()
+	}()
+
 	if err = (&controllers.LendingConfigReconciler{
 		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Cron:   cron,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "LendingConfig")
 		os.Exit(1)
