@@ -26,7 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	clusterlendingmanagerv1alpha1 "dtaniwaki/cluster-lending-manager/api/v1alpha1"
+	clusterlendingmanagerv1alpha1 "github.com/dtaniwaki/cluster-lending-manager/api/v1alpha1"
 )
 
 // LendingConfigReconciler reconciles a LendingConfig object

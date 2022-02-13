@@ -18,7 +18,8 @@ package controllers
 
 import (
 	"context"
-	clusterlendingmanagerv1alpha1 "dtaniwaki/cluster-lending-manager/api/v1alpha1"
+
+	clusterlendingmanagerv1alpha1 "github.com/dtaniwaki/cluster-lending-manager/api/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/types"
 )
