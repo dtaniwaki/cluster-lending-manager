@@ -1,0 +1,19 @@
+apiVersion: clusterlendingmanager.dtaniwaki.github.com/v1alpha1
+kind: LendingConfig
+metadata:
+  name: LendingConfig-sample
+spec:
+  timezone: "Asia/Tokyo"
+  schedules:
+  - start:
+      hours: "10:00"
+      dayOfWeek: "Friday"
+    end:
+      time: "20:00"
+      dayOfWeek: "Friday"
+  - start:
+      time: "07:00"
+      dayOfWeek: "Satday"
+    end:
+      time: "23:59"
+      dayOfWeek: "Sunday"

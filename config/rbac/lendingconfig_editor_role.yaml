@@ -1,13 +1,13 @@
-# permissions for end users to edit lendingschedules.
+# permissions for end users to edit LendingConfigs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: lendingschedule-editor-role
+  name: LendingConfig-editor-role
 rules:
 - apiGroups:
   - clusterlendingmanager.dtaniwaki.github.com
   resources:
-  - lendingschedules
+  - LendingConfigs
   verbs:
   - create
   - delete
@@ -19,6 +19,6 @@ rules:
 - apiGroups:
   - clusterlendingmanager.dtaniwaki.github.com
   resources:
-  - lendingschedules/status
+  - LendingConfigs/status
   verbs:
   - get

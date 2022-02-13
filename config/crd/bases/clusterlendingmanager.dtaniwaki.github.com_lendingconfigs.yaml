@@ -5,20 +5,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.8.0
   creationTimestamp: null
-  name: lendingschedules.clusterlendingmanager.dtaniwaki.github.com
+  name: lendingconfigs.clusterlendingmanager.dtaniwaki.github.com
 spec:
   group: clusterlendingmanager.dtaniwaki.github.com
   names:
-    kind: LendingSchedule
-    listKind: LendingScheduleList
-    plural: lendingschedules
-    singular: lendingschedule
+    kind: LendingConfig
+    listKind: LendingConfigList
+    plural: lendingconfigs
+    singular: lendingconfig
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: LendingSchedule is the Schema for the lendingschedules API
+        description: LendingConfig is the Schema for the LendingConfigs API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,15 +33,39 @@ spec:
           metadata:
             type: object
           spec:
-            description: LendingScheduleSpec defines the desired state of LendingSchedule
+            description: LendingConfigSpec defines the desired state of LendingConfig
             properties:
-              foo:
-                description: Foo is an example field of LendingSchedule. Edit lendingschedule_types.go
-                  to remove/update
+              schedules:
+                description: Schedules is ...
+                items:
+                  properties:
+                    end:
+                      description: EndAt is...
+                      properties:
+                        dayOfWeek:
+                          description: DayOfWeek is ...
+                          type: string
+                        time:
+                          description: Time is ...
+                          type: string
+                      type: object
+                    start:
+                      description: StartAt is...
+                      properties:
+                        dayOfWeek:
+                          description: DayOfWeek is ...
+                          type: string
+                        time:
+                          description: Time is ...
+                          type: string
+                      type: object
+                  type: object
+                type: array
+              timezone:
                 type: string
             type: object
           status:
-            description: LendingScheduleStatus defines the observed state of LendingSchedule
+            description: LendingConfigStatus defines the observed state of LendingConfig
             type: object
         type: object
     served: true

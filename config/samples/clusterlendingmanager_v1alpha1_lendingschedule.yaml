@@ -1,6 +1,0 @@
-apiVersion: clusterlendingmanager.dtaniwaki.github.com/v1alpha1
-kind: LendingSchedule
-metadata:
-  name: lendingschedule-sample
-spec:
-  # TODO(user): Add fields here

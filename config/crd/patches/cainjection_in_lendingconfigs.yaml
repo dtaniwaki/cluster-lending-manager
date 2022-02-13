@@ -4,4 +4,4 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
-  name: lendingschedules.clusterlendingmanager.dtaniwaki.github.com
+  name: LendingConfigs.clusterlendingmanager.dtaniwaki.github.com

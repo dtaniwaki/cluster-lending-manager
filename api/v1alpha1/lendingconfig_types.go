@@ -20,20 +20,29 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// LendingScheduleSpec defines the desired state of LendingSchedule
-type LendingScheduleSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of LendingSchedule. Edit lendingschedule_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+type ScheduleTiming struct {
+	// Time is ...
+	Time string `json:"time,omitempty"`
+	// DayOfWeek is ...
+	DayOfWeek string `json:"dayOfWeek,omitempty"`
 }
 
-// LendingScheduleStatus defines the observed state of LendingSchedule
-type LendingScheduleStatus struct {
+type ScheduleConfig struct {
+	// StartAt is...
+	Start ScheduleTiming `json:"start,omitempty"`
+	// EndAt is...
+	End ScheduleTiming `json:"end,omitempty"`
+}
+
+// LendingConfigSpec defines the desired state of LendingConfig
+type LendingConfigSpec struct {
+	Timezone string `json:"timezone,omitempty"`
+	// Schedules is ...
+	Schedules []ScheduleConfig `json:"schedules,omitempty"`
+}
+
+// LendingConfigStatus defines the observed state of LendingConfig
+type LendingConfigStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 }
@@ -41,24 +50,24 @@ type LendingScheduleStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// LendingSchedule is the Schema for the lendingschedules API
-type LendingSchedule struct {
+// LendingConfig is the Schema for the LendingConfigs API
+type LendingConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   LendingScheduleSpec   `json:"spec,omitempty"`
-	Status LendingScheduleStatus `json:"status,omitempty"`
+	Spec   LendingConfigSpec   `json:"spec,omitempty"`
+	Status LendingConfigStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// LendingScheduleList contains a list of LendingSchedule
-type LendingScheduleList struct {
+// LendingConfigList contains a list of LendingConfig
+type LendingConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []LendingSchedule `json:"items"`
+	Items           []LendingConfig `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&LendingSchedule{}, &LendingScheduleList{})
+	SchemeBuilder.Register(&LendingConfig{}, &LendingConfigList{})
 }

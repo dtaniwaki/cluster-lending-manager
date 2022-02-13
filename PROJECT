@@ -10,7 +10,7 @@ resources:
   controller: true
   domain: dtaniwaki.github.com
   group: clusterlendingmanager
-  kind: LendingSchedule
+  kind: LendingConfig
   path: dtaniwaki/cluster-lending-manager/api/v1alpha1
   version: v1alpha1
 version: "3"
