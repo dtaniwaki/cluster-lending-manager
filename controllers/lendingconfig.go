@@ -18,7 +18,11 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
 
 	clusterlendingmanagerv1alpha1 "github.com/dtaniwaki/cluster-lending-manager/api/v1alpha1"
 
@@ -26,6 +30,8 @@ import (
 )
 
 type LendingConfig clusterlendingmanagerv1alpha1.LendingConfig
+
+var hoursPattern = regexp.MustCompile(`(\d{2}):(\d{2}) *(am|pm)?`)
 
 func (config *LendingConfig) ClearSchedules(ctx context.Context, reconciler *LendingConfigReconciler) error {
 	reconciler.Cron.Clear(config.ToNamespacedName())
@@ -38,66 +44,82 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 	items := []CronItem{}
 
 	if config.Spec.Schedule.Default != nil && config.Spec.Schedule.Default.Hours != nil {
-		for _, tsz := range getCrons(config.Spec.Timezone, config.Spec.Schedule.Default.Hours) {
-			items = append(items, CronItem{Cron: tsz, Job: NewCronContext(
-				reconciler, config, "",
-			)})
+		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Default.Hours)
+		if err != nil {
+			return err
+		}
+		for _, cron := range crons {
+			items = append(items, cron)
 		}
 	}
 
 	if config.Spec.Schedule.Monday != nil && config.Spec.Schedule.Monday.Hours != nil {
-		for _, tsz := range getCrons(config.Spec.Timezone, config.Spec.Schedule.Monday.Hours) {
-			items = append(items, CronItem{Cron: tsz, Job: NewCronContext(
-				reconciler, config, "",
-			)})
+		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Monday.Hours)
+		if err != nil {
+			return err
+		}
+		for _, cron := range crons {
+			items = append(items, cron)
 		}
 	}
 
 	if config.Spec.Schedule.Tuesday != nil && config.Spec.Schedule.Tuesday.Hours != nil {
-		for _, tsz := range getCrons(config.Spec.Timezone, config.Spec.Schedule.Tuesday.Hours) {
-			items = append(items, CronItem{Cron: tsz, Job: NewCronContext(
-				reconciler, config, "",
-			)})
+		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Tuesday.Hours)
+		if err != nil {
+			return err
+		}
+		for _, cron := range crons {
+			items = append(items, cron)
 		}
 	}
 
 	if config.Spec.Schedule.Wednesday != nil && config.Spec.Schedule.Wednesday.Hours != nil {
-		for _, tsz := range getCrons(config.Spec.Timezone, config.Spec.Schedule.Wednesday.Hours) {
-			items = append(items, CronItem{Cron: tsz, Job: NewCronContext(
-				reconciler, config, "",
-			)})
+		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Wednesday.Hours)
+		if err != nil {
+			return err
+		}
+		for _, cron := range crons {
+			items = append(items, cron)
 		}
 	}
 
 	if config.Spec.Schedule.Thursday != nil && config.Spec.Schedule.Thursday.Hours != nil {
-		for _, tsz := range getCrons(config.Spec.Timezone, config.Spec.Schedule.Thursday.Hours) {
-			items = append(items, CronItem{Cron: tsz, Job: NewCronContext(
-				reconciler, config, "",
-			)})
+		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Thursday.Hours)
+		if err != nil {
+			return err
+		}
+		for _, cron := range crons {
+			items = append(items, cron)
 		}
 	}
 
 	if config.Spec.Schedule.Friday != nil && config.Spec.Schedule.Friday.Hours != nil {
-		for _, tsz := range getCrons(config.Spec.Timezone, config.Spec.Schedule.Friday.Hours) {
-			items = append(items, CronItem{Cron: tsz, Job: NewCronContext(
-				reconciler, config, "",
-			)})
+		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Friday.Hours)
+		if err != nil {
+			return err
+		}
+		for _, cron := range crons {
+			items = append(items, cron)
 		}
 	}
 
 	if config.Spec.Schedule.Saturday != nil && config.Spec.Schedule.Saturday.Hours != nil {
-		for _, tsz := range getCrons(config.Spec.Timezone, config.Spec.Schedule.Saturday.Hours) {
-			items = append(items, CronItem{Cron: tsz, Job: NewCronContext(
-				reconciler, config, "",
-			)})
+		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Saturday.Hours)
+		if err != nil {
+			return err
+		}
+		for _, cron := range crons {
+			items = append(items, cron)
 		}
 	}
 
 	if config.Spec.Schedule.Sunday != nil && config.Spec.Schedule.Sunday.Hours != nil {
-		for _, tsz := range getCrons(config.Spec.Timezone, config.Spec.Schedule.Sunday.Hours) {
-			items = append(items, CronItem{Cron: tsz, Job: NewCronContext(
-				reconciler, config, "",
-			)})
+		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Sunday.Hours)
+		if err != nil {
+			return err
+		}
+		for _, cron := range crons {
+			items = append(items, cron)
 		}
 	}
 
@@ -117,23 +139,48 @@ func (config *LendingConfig) ToNamespacedName() types.NamespacedName {
 	return types.NamespacedName{Namespace: config.Namespace, Name: config.Name}
 }
 
-func parseHours(hours string) (int32, int32) {
-	return 0, 0
-}
-
-func getCrons(timezone string, schedules []clusterlendingmanagerv1alpha1.Schedule) []string {
-	res := []string{}
+func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, schedules []clusterlendingmanagerv1alpha1.Schedule) ([]CronItem, error) {
+	res := []CronItem{}
 	for _, hours := range schedules {
 		if hours.Start != nil {
-			hour, minute := parseHours(*hours.Start)
-			tsz := fmt.Sprintf("CRON_TZ=%s 0 %d %d * *", timezone, minute, hour)
-			res = append(res, tsz)
+			hour, minute, err := parseHours(*hours.Start)
+			if err != nil {
+				return nil, err
+			}
+			tsz := fmt.Sprintf("CRON_TZ=%s 0 %d %d * *", config.Spec.Timezone, minute, hour)
+			res = append(res, CronItem{Cron: tsz, Job: NewCronContext(
+				reconciler, config, "LendingStart",
+			)})
 		}
 		if hours.End != nil {
-			hour, minute := parseHours(*hours.End)
-			tsz := fmt.Sprintf("CRON_TZ=%s 0 %d %d * *", timezone, minute, hour)
-			res = append(res, tsz)
+			hour, minute, err := parseHours(*hours.End)
+			if err != nil {
+				return nil, err
+			}
+			tsz := fmt.Sprintf("CRON_TZ=%s 0 %d %d * *", config.Spec.Timezone, minute, hour)
+			res = append(res, CronItem{Cron: tsz, Job: NewCronContext(
+				reconciler, config, "LendingEnd",
+			)})
 		}
 	}
-	return res
+	return res, nil
+}
+
+func parseHours(hours string) (int32, int32, error) {
+	res := hoursPattern.FindStringSubmatch(strings.ToLower(hours))
+	if len(res) != 3 {
+		return 0, 0, errors.New("hours format is invalid")
+	}
+	hour, err := strconv.Atoi(res[0])
+	if err != nil {
+		return 0, 0, err
+	}
+	minute, err := strconv.Atoi(res[1])
+	if err != nil {
+		return 0, 0, err
+	}
+	if res[2] == "pm" {
+		hour += 12
+	}
+	return int32(hour), int32(minute), nil
 }
