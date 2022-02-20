@@ -54,9 +54,7 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 		if err != nil {
 			return err
 		}
-		for _, cron := range crons {
-			items = append(items, cron)
-		}
+		items = append(items, crons...)
 	}
 
 	var tueHours []clusterlendingmanagerv1alpha1.Schedule
@@ -70,9 +68,7 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 		if err != nil {
 			return err
 		}
-		for _, cron := range crons {
-			items = append(items, cron)
-		}
+		items = append(items, crons...)
 	}
 
 	var wedHours []clusterlendingmanagerv1alpha1.Schedule
@@ -86,9 +82,7 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 		if err != nil {
 			return err
 		}
-		for _, cron := range crons {
-			items = append(items, cron)
-		}
+		items = append(items, crons...)
 	}
 
 	var thuHours []clusterlendingmanagerv1alpha1.Schedule
@@ -102,9 +96,7 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 		if err != nil {
 			return err
 		}
-		for _, cron := range crons {
-			items = append(items, cron)
-		}
+		items = append(items, crons...)
 	}
 
 	var friHours []clusterlendingmanagerv1alpha1.Schedule
@@ -118,9 +110,7 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 		if err != nil {
 			return err
 		}
-		for _, cron := range crons {
-			items = append(items, cron)
-		}
+		items = append(items, crons...)
 	}
 
 	var satHours []clusterlendingmanagerv1alpha1.Schedule
@@ -134,9 +124,7 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 		if err != nil {
 			return err
 		}
-		for _, cron := range crons {
-			items = append(items, cron)
-		}
+		items = append(items, crons...)
 	}
 
 	var sunHours []clusterlendingmanagerv1alpha1.Schedule
@@ -150,9 +138,7 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 		if err != nil {
 			return err
 		}
-		for _, cron := range crons {
-			items = append(items, cron)
-		}
+		items = append(items, crons...)
 	}
 
 	err := reconciler.Cron.Add(config.ToNamespacedName(), items)
