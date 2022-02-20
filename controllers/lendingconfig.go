@@ -43,18 +43,14 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 
 	items := []CronItem{}
 
-	if config.Spec.Schedule.Default != nil && config.Spec.Schedule.Default.Hours != nil {
-		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Default.Hours)
-		if err != nil {
-			return err
-		}
-		for _, cron := range crons {
-			items = append(items, cron)
-		}
-	}
-
+	var monHours []clusterlendingmanagerv1alpha1.Schedule
 	if config.Spec.Schedule.Monday != nil && config.Spec.Schedule.Monday.Hours != nil {
-		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Monday.Hours)
+		monHours = config.Spec.Schedule.Monday.Hours
+	} else if config.Spec.Schedule.Default != nil && config.Spec.Schedule.Default.Hours != nil {
+		monHours = config.Spec.Schedule.Default.Hours
+	}
+	if monHours != nil {
+		crons, err := config.getCrons(reconciler, "mon", monHours)
 		if err != nil {
 			return err
 		}
@@ -63,8 +59,14 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 		}
 	}
 
+	var tueHours []clusterlendingmanagerv1alpha1.Schedule
 	if config.Spec.Schedule.Tuesday != nil && config.Spec.Schedule.Tuesday.Hours != nil {
-		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Tuesday.Hours)
+		tueHours = config.Spec.Schedule.Tuesday.Hours
+	} else if config.Spec.Schedule.Default != nil && config.Spec.Schedule.Default.Hours != nil {
+		tueHours = config.Spec.Schedule.Default.Hours
+	}
+	if tueHours != nil {
+		crons, err := config.getCrons(reconciler, "tue", tueHours)
 		if err != nil {
 			return err
 		}
@@ -73,8 +75,14 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 		}
 	}
 
+	var wedHours []clusterlendingmanagerv1alpha1.Schedule
 	if config.Spec.Schedule.Wednesday != nil && config.Spec.Schedule.Wednesday.Hours != nil {
-		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Wednesday.Hours)
+		wedHours = config.Spec.Schedule.Wednesday.Hours
+	} else if config.Spec.Schedule.Default != nil && config.Spec.Schedule.Default.Hours != nil {
+		wedHours = config.Spec.Schedule.Default.Hours
+	}
+	if wedHours != nil {
+		crons, err := config.getCrons(reconciler, "wed", wedHours)
 		if err != nil {
 			return err
 		}
@@ -83,8 +91,14 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 		}
 	}
 
+	var thuHours []clusterlendingmanagerv1alpha1.Schedule
 	if config.Spec.Schedule.Thursday != nil && config.Spec.Schedule.Thursday.Hours != nil {
-		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Thursday.Hours)
+		thuHours = config.Spec.Schedule.Thursday.Hours
+	} else if config.Spec.Schedule.Default != nil && config.Spec.Schedule.Default.Hours != nil {
+		thuHours = config.Spec.Schedule.Default.Hours
+	}
+	if thuHours != nil {
+		crons, err := config.getCrons(reconciler, "thu", thuHours)
 		if err != nil {
 			return err
 		}
@@ -93,8 +107,14 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 		}
 	}
 
+	var friHours []clusterlendingmanagerv1alpha1.Schedule
 	if config.Spec.Schedule.Friday != nil && config.Spec.Schedule.Friday.Hours != nil {
-		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Friday.Hours)
+		friHours = config.Spec.Schedule.Friday.Hours
+	} else if config.Spec.Schedule.Default != nil && config.Spec.Schedule.Default.Hours != nil {
+		friHours = config.Spec.Schedule.Default.Hours
+	}
+	if friHours != nil {
+		crons, err := config.getCrons(reconciler, "fri", friHours)
 		if err != nil {
 			return err
 		}
@@ -103,8 +123,14 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 		}
 	}
 
+	var satHours []clusterlendingmanagerv1alpha1.Schedule
 	if config.Spec.Schedule.Saturday != nil && config.Spec.Schedule.Saturday.Hours != nil {
-		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Saturday.Hours)
+		satHours = config.Spec.Schedule.Saturday.Hours
+	} else if config.Spec.Schedule.Default != nil && config.Spec.Schedule.Default.Hours != nil {
+		satHours = config.Spec.Schedule.Default.Hours
+	}
+	if satHours != nil {
+		crons, err := config.getCrons(reconciler, "sat", satHours)
 		if err != nil {
 			return err
 		}
@@ -113,8 +139,14 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 		}
 	}
 
+	var sunHours []clusterlendingmanagerv1alpha1.Schedule
 	if config.Spec.Schedule.Sunday != nil && config.Spec.Schedule.Sunday.Hours != nil {
-		crons, err := config.getCrons(reconciler, config.Spec.Schedule.Sunday.Hours)
+		sunHours = config.Spec.Schedule.Sunday.Hours
+	} else if config.Spec.Schedule.Default != nil && config.Spec.Schedule.Default.Hours != nil {
+		sunHours = config.Spec.Schedule.Default.Hours
+	}
+	if sunHours != nil {
+		crons, err := config.getCrons(reconciler, "sun", sunHours)
 		if err != nil {
 			return err
 		}
@@ -139,7 +171,7 @@ func (config *LendingConfig) ToNamespacedName() types.NamespacedName {
 	return types.NamespacedName{Namespace: config.Namespace, Name: config.Name}
 }
 
-func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, schedules []clusterlendingmanagerv1alpha1.Schedule) ([]CronItem, error) {
+func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, dayOfWeek string, schedules []clusterlendingmanagerv1alpha1.Schedule) ([]CronItem, error) {
 	res := []CronItem{}
 	for _, hours := range schedules {
 		if hours.Start != nil {
@@ -147,7 +179,7 @@ func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, sched
 			if err != nil {
 				return nil, err
 			}
-			tsz := fmt.Sprintf("CRON_TZ=%s 0 %d %d * *", config.Spec.Timezone, minute, hour)
+			tsz := fmt.Sprintf("CRON_TZ=%s 0 %d %d * %s", config.Spec.Timezone, minute, hour, dayOfWeek)
 			res = append(res, CronItem{Cron: tsz, Job: NewCronContext(
 				reconciler, config, "LendingStart",
 			)})
@@ -157,7 +189,7 @@ func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, sched
 			if err != nil {
 				return nil, err
 			}
-			tsz := fmt.Sprintf("CRON_TZ=%s 0 %d %d * *", config.Spec.Timezone, minute, hour)
+			tsz := fmt.Sprintf("CRON_TZ=%s 0 %d %d * %s", config.Spec.Timezone, minute, hour, dayOfWeek)
 			res = append(res, CronItem{Cron: tsz, Job: NewCronContext(
 				reconciler, config, "LendingEnd",
 			)})
