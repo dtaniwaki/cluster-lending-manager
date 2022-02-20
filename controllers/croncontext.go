@@ -19,6 +19,12 @@ package controllers
 import (
 	"context"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -52,6 +58,80 @@ func (cronctx *CronContext) Run() {
 }
 
 func (cronctx *CronContext) run(ctx context.Context) error {
-	// TODO: Start or stop.
+	if cronctx.event == "LendingStart" {
+		return cronctx.startLending(ctx)
+	} else {
+		return cronctx.endLending(ctx)
+	}
+}
+
+func (cronctx *CronContext) startLending(ctx context.Context) error {
+	for _, target := range cronctx.lendingconfig.Spec.Targets {
+		groupVersion, err := schema.ParseGroupVersion(target.APIVersion)
+		if err != nil {
+			return err
+		}
+		objs := &unstructured.Unstructured{}
+		objs.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   groupVersion.Group,
+			Version: groupVersion.Version,
+			Kind:    target.Kind,
+		})
+
+		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: cronctx.lendingconfig.Namespace})
+		if err != nil {
+			return err
+		}
+		err = objs.EachListItem(func(obj runtime.Object) error {
+			metaobj := obj.(metav1.Object)
+			patch := &unstructured.Unstructured{}
+			patch.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
+			patch.SetNamespace(metaobj.GetNamespace())
+			patch.SetName(metaobj.GetName())
+			patch.UnstructuredContent()["spec"] = map[string]interface{}{
+				"replicas": pointer.Int32(1),
+			}
+			err := cronctx.reconciler.Patch(ctx, patch, client.Apply, &client.PatchOptions{
+				Force: pointer.Bool(true),
+			})
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return nil
+		}
+	}
+	return nil
+}
+
+func (cronctx *CronContext) endLending(ctx context.Context) error {
+	for _, target := range cronctx.lendingconfig.Spec.Targets {
+		groupVersion, err := schema.ParseGroupVersion(target.APIVersion)
+		if err != nil {
+			return err
+		}
+		patch := &unstructured.Unstructured{}
+		patch.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   groupVersion.Group,
+			Version: groupVersion.Version,
+			Kind:    target.Kind,
+		})
+		patch.SetNamespace(cronctx.lendingconfig.Namespace)
+		if target.Name != nil {
+			patch.SetName(*target.Name)
+		}
+		patch.UnstructuredContent()["spec"] = map[string]interface{}{
+			"replicas": pointer.Int32(0),
+		}
+
+		err = cronctx.reconciler.Patch(ctx, patch, client.Apply, &client.PatchOptions{
+			Force: pointer.Bool(true),
+		})
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
