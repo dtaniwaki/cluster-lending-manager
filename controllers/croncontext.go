@@ -70,6 +70,9 @@ func (cronctx *CronContext) run(ctx context.Context) error {
 }
 
 func (cronctx *CronContext) startLending(ctx context.Context) error {
+	logger := log.FromContext(ctx)
+	logger.Info("Start lending")
+
 	for _, target := range cronctx.lendingconfig.Spec.Targets {
 		groupVersion, err := schema.ParseGroupVersion(target.APIVersion)
 		if err != nil {
@@ -92,6 +95,7 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 			patch.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
 			patch.SetNamespace(metaobj.GetNamespace())
 			patch.SetName(metaobj.GetName())
+			logger.Info(fmt.Sprintf("Patch %s %s/%s", obj.GetObjectKind().GroupVersionKind(), metaobj.GetNamespace(), metaobj.GetName()))
 			patch.UnstructuredContent()["spec"] = map[string]interface{}{
 				"replicas": pointer.Int32(1),
 			}
@@ -114,6 +118,9 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 }
 
 func (cronctx *CronContext) endLending(ctx context.Context) error {
+	logger := log.FromContext(ctx)
+	logger.Info("End lending")
+
 	for _, target := range cronctx.lendingconfig.Spec.Targets {
 		groupVersion, err := schema.ParseGroupVersion(target.APIVersion)
 		if err != nil {
@@ -133,6 +140,7 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 			"replicas": pointer.Int32(0),
 		}
 
+		logger.Info(fmt.Sprintf("Patch %s %s/%s", patch.GetObjectKind().GroupVersionKind(), patch.GetNamespace(), patch.GetName()))
 		err = cronctx.reconciler.Patch(ctx, patch, client.Apply, &client.PatchOptions{
 			Force: pointer.Bool(true),
 		})
