@@ -44,8 +44,9 @@ type Cron struct {
 
 func NewCron() *Cron {
 	return &Cron{
-		cron: cron.New(),
-		lock: sync.RWMutex{},
+		cron:    cron.New(),
+		lock:    sync.RWMutex{},
+		entries: map[string][]cron.EntryID{},
 	}
 }
 

@@ -26,6 +26,7 @@ import (
 
 	clusterlendingmanagerv1alpha1 "github.com/dtaniwaki/cluster-lending-manager/api/v1alpha1"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -33,8 +34,22 @@ type LendingConfig clusterlendingmanagerv1alpha1.LendingConfig
 
 var hoursPattern = regexp.MustCompile(`(\d{2}):(\d{2}) *(am|pm)?`)
 
+type LendingConfigEvent = string
+
+const annotationNameSkip = "cron-hpa.dtaniwaki.github.com/skip"
+
+const (
+	SchedulesUpdated LendingConfigEvent = "SchedulesUpdated"
+	SchedulesCleared LendingConfigEvent = "SchedulesCleared"
+	LendingStarted   LendingConfigEvent = "LendingStarted"
+	LendingEnded     LendingConfigEvent = "endingEnded"
+)
+
 func (config *LendingConfig) ClearSchedules(ctx context.Context, reconciler *LendingConfigReconciler) error {
 	reconciler.Cron.Clear(config.ToNamespacedName())
+
+	reconciler.Recorder.Event(config.ToCompatible(), corev1.EventTypeNormal, SchedulesCleared, "Schedules cleared.")
+
 	return nil
 }
 
@@ -145,6 +160,8 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 	if err != nil {
 		return err
 	}
+
+	reconciler.Recorder.Event(config.ToCompatible(), corev1.EventTypeNormal, SchedulesUpdated, "Schedules updated.")
 
 	return nil
 }

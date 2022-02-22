@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -32,7 +33,8 @@ import (
 // LendingConfigReconciler reconciles a LendingConfig object
 type LendingConfigReconciler struct {
 	client.Client
-	Cron *Cron
+	Recorder record.EventRecorder
+	Cron     *Cron
 }
 
 const finalizerName = "clusterlendingmanager.dtaniwaki.github.com/finalizer"

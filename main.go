@@ -86,8 +86,9 @@ func main() {
 	}()
 
 	if err = (&controllers.LendingConfigReconciler{
-		Client: mgr.GetClient(),
-		Cron:   cron,
+		Client:   mgr.GetClient(),
+		Recorder: mgr.GetEventRecorderFor("cron-hpa-controller"),
+		Cron:     cron,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "LendingConfig")
 		os.Exit(1)
