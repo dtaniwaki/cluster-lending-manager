@@ -104,7 +104,7 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 			return nil
 		})
 		if err != nil {
-			return nil
+			return err
 		}
 	}
 
