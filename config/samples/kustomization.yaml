@@ -1,0 +1,3 @@
+resources:
+- clusterlendingmanager_v1alpha1_lendingconfig.yaml
+- deployment.yaml
