@@ -186,7 +186,7 @@ func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, dayOf
 
 func parseHours(hours string) (int32, int32, error) {
 	res := hoursPattern.FindStringSubmatch(strings.ToLower(hours))
-	if len(res) != 3 {
+	if len(res) >= 2 && len(res) <= 3 {
 		return 0, 0, errors.New("hours format is invalid")
 	}
 	hour, err := strconv.Atoi(res[0])
@@ -197,7 +197,7 @@ func parseHours(hours string) (int32, int32, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	if res[2] == "pm" {
+	if len(res) == 3 && res[2] == "pm" {
 		hour += 12
 	}
 	return int32(hour), int32(minute), nil
