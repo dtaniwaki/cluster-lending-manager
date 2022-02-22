@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,10 +60,12 @@ func (cronctx *CronContext) Run() {
 }
 
 func (cronctx *CronContext) run(ctx context.Context) error {
-	if cronctx.event == "LendingStart" {
+	if cronctx.event == LendingStart {
 		return cronctx.startLending(ctx)
-	} else {
+	} else if cronctx.event == LendingEnd {
 		return cronctx.endLending(ctx)
+	} else {
+		return fmt.Errorf("Unknown event %s", cronctx.event)
 	}
 }
 
