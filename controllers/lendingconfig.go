@@ -184,7 +184,7 @@ func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, dayOf
 			}
 			tsz := fmt.Sprintf("CRON_TZ=%s %d %d * * %s", config.Spec.Timezone, minute, hour, dayOfWeek)
 			res = append(res, CronItem{Cron: tsz, Job: NewCronContext(
-				reconciler, config, "LendingStart",
+				reconciler, config, LendingStart,
 			)})
 		}
 		if hours.End != nil {
@@ -194,7 +194,7 @@ func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, dayOf
 			}
 			tsz := fmt.Sprintf("CRON_TZ=%s %d %d * * %s", config.Spec.Timezone, minute, hour, dayOfWeek)
 			res = append(res, CronItem{Cron: tsz, Job: NewCronContext(
-				reconciler, config, "LendingEnd",
+				reconciler, config, LendingEnd,
 			)})
 		}
 	}
