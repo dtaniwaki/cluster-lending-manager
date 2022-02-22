@@ -37,9 +37,9 @@ type LendingConfigReconciler struct {
 
 const finalizerName = "clusterlendingmanager.dtaniwaki.github.com/finalizer"
 
-//+kubebuilder:rbac:groups=clusterlendingmanager.dtaniwaki.github.com,resources=LendingConfigs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=clusterlendingmanager.dtaniwaki.github.com,resources=LendingConfigs/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=clusterlendingmanager.dtaniwaki.github.com,resources=LendingConfigs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=clusterlendingmanager.dtaniwaki.github.com,resources=lendingconfigs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=clusterlendingmanager.dtaniwaki.github.com,resources=lendingconfigs/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=clusterlendingmanager.dtaniwaki.github.com,resources=lendingconfigs/finalizers,verbs=update
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;update;patch
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 

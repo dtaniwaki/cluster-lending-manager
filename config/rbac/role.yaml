@@ -24,7 +24,7 @@ rules:
 - apiGroups:
   - clusterlendingmanager.dtaniwaki.github.com
   resources:
-  - LendingConfigs
+  - lendingconfigs
   verbs:
   - create
   - delete
@@ -36,13 +36,13 @@ rules:
 - apiGroups:
   - clusterlendingmanager.dtaniwaki.github.com
   resources:
-  - LendingConfigs/finalizers
+  - lendingconfigs/finalizers
   verbs:
   - update
 - apiGroups:
   - clusterlendingmanager.dtaniwaki.github.com
   resources:
-  - LendingConfigs/status
+  - lendingconfigs/status
   verbs:
   - get
   - patch
