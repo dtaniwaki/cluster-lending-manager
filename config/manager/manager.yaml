@@ -31,7 +31,8 @@ spec:
         - /manager
         args:
         - --leader-elect
-        image: controller:latest
+        image: docker.pkg.github.com/dtaniwaki/cluster-lending-manager/controller:latest
+        imagePullPolicy: IfNotPresent
         name: manager
         securityContext:
           allowPrivilegeEscalation: false
