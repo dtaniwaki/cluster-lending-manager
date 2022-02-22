@@ -165,7 +165,7 @@ func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, dayOf
 			if err != nil {
 				return nil, err
 			}
-			tsz := fmt.Sprintf("CRON_TZ=%s 0 %d %d * %s", config.Spec.Timezone, minute, hour, dayOfWeek)
+			tsz := fmt.Sprintf("CRON_TZ=%s %d %d * * %s", config.Spec.Timezone, minute, hour, dayOfWeek)
 			res = append(res, CronItem{Cron: tsz, Job: NewCronContext(
 				reconciler, config, "LendingStart",
 			)})
@@ -175,7 +175,7 @@ func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, dayOf
 			if err != nil {
 				return nil, err
 			}
-			tsz := fmt.Sprintf("CRON_TZ=%s 0 %d %d * %s", config.Spec.Timezone, minute, hour, dayOfWeek)
+			tsz := fmt.Sprintf("CRON_TZ=%s %d %d * * %s", config.Spec.Timezone, minute, hour, dayOfWeek)
 			res = append(res, CronItem{Cron: tsz, Job: NewCronContext(
 				reconciler, config, "LendingEnd",
 			)})
@@ -197,7 +197,7 @@ func parseHours(hours string) (int32, int32, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	if len(res) == 4 && res[3] == "pm" {
+	if res[3] == "pm" {
 		hour += 12
 	}
 	return int32(hour), int32(minute), nil
