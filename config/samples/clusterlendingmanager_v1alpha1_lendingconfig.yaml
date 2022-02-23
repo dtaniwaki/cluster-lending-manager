@@ -6,8 +6,6 @@ spec:
   targets:
   - kind: Deployment
     apiVersion: apps/v1
-  - kind: Rollout
-    apiVersion: argoproj.io/v1alpha1
   timezone: "Asia/Tokyo"
   schedule:
     default:
