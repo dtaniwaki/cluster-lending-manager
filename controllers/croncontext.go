@@ -89,11 +89,14 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 			uobj := obj.(*unstructured.Unstructured)
 			logger.Info(fmt.Sprintf("Patch %s %s/%s", groupVersionKind, uobj.GetNamespace(), uobj.GetName()))
 
-			replicas, err := getReplicas(uobj)
+			replicas, found, err := unstructured.NestedInt64(uobj.UnstructuredContent(), "spec", "replicas")
 			if err != nil {
 				return err
 			}
-			if replicas != nil && *replicas == 0 {
+			if !found {
+				return fmt.Errorf("The resource doesn't have replcias field.")
+			}
+			if replicas > 0 {
 				logger.Info("Skipped the already running resource.")
 				return nil
 			}
@@ -145,12 +148,15 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 			uobj := obj.(*unstructured.Unstructured)
 			logger.Info(fmt.Sprintf("Patch %s %s/%s", groupVersionKind, uobj.GetNamespace(), uobj.GetName()))
 
-			replicas, err := getReplicas(uobj)
+			replicas, found, err := unstructured.NestedInt64(uobj.UnstructuredContent(), "spec", "replicas")
 			if err != nil {
 				return err
 			}
-			if replicas != nil && *replicas == 0 {
-				logger.Info("Skipped the already running resource.")
+			if !found {
+				return fmt.Errorf("The resource doesn't have replcias field.")
+			}
+			if replicas == 0 {
+				logger.Info("Skipped the already stopped resource.")
 				return nil
 			}
 			annotations := uobj.GetAnnotations()
@@ -187,19 +193,6 @@ func getGroupVersionKind(obj v1alpha1.Target) (schema.GroupVersionKind, error) {
 	}
 	return groupVersion.WithKind(obj.Kind), nil
 
-}
-
-func getReplicas(uobj *unstructured.Unstructured) (*int32, error) {
-	if uobj.UnstructuredContent()["spec"] != nil {
-		spec, ok := uobj.UnstructuredContent()["spec"].(map[string]interface{})
-		if ok && spec["replicas"] != nil {
-			replicas, ok := spec["replicas"].(*int32)
-			if ok {
-				return replicas, nil
-			}
-		}
-	}
-	return nil, fmt.Errorf("The resource doesn't have replicas field.")
 }
 
 func makeReplicasPatch(uobj *unstructured.Unstructured, groupVersionKind schema.GroupVersionKind, replicas int32) *unstructured.Unstructured {
