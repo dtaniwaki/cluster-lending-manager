@@ -20,8 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/dtaniwaki/cluster-lending-manager/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -71,40 +71,48 @@ func (cronctx *CronContext) run(ctx context.Context) error {
 
 func (cronctx *CronContext) startLending(ctx context.Context) error {
 	logger := log.FromContext(ctx)
-	logger.Info("Start lending")
+	logger.Info(fmt.Sprintf("Start lending of %s/%s", cronctx.lendingconfig.Namespace, cronctx.lendingconfig.Name))
 
 	for _, target := range cronctx.lendingconfig.Spec.Targets {
-		groupVersion, err := schema.ParseGroupVersion(target.APIVersion)
+		groupVersionKind, err := getGroupVersionKind(target)
 		if err != nil {
 			return err
 		}
 		objs := &unstructured.Unstructured{}
-		objs.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   groupVersion.Group,
-			Version: groupVersion.Version,
-			Kind:    target.Kind,
-		})
+		objs.SetGroupVersionKind(groupVersionKind)
 
 		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: cronctx.lendingconfig.Namespace})
 		if err != nil {
 			return err
 		}
 		err = objs.EachListItem(func(obj runtime.Object) error {
-			metaobj := obj.(metav1.Object)
-			patch := &unstructured.Unstructured{}
-			patch.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
-			patch.SetNamespace(metaobj.GetNamespace())
-			patch.SetName(metaobj.GetName())
-			logger.Info(fmt.Sprintf("Patch %s %s/%s", obj.GetObjectKind().GroupVersionKind(), metaobj.GetNamespace(), metaobj.GetName()))
-			patch.UnstructuredContent()["spec"] = map[string]interface{}{
-				"replicas": pointer.Int32(1),
+			uobj := obj.(*unstructured.Unstructured)
+			logger.Info(fmt.Sprintf("Patch %s %s/%s", groupVersionKind, uobj.GetNamespace(), uobj.GetName()))
+
+			replicas, err := getReplicas(uobj)
+			if err != nil {
+				return err
 			}
-			err := cronctx.reconciler.Patch(ctx, patch, client.Apply, &client.PatchOptions{
-				Force: pointer.Bool(true),
+			if replicas != nil && *replicas == 0 {
+				logger.Info("Skipped the already running resource.")
+				return nil
+			}
+			annotations := uobj.GetAnnotations()
+			if annotations[annotationNameSkip] == "true" {
+				logger.Info("Skipped the annotated resource.")
+				return nil
+			}
+			// TODO: Restore the last replicas in the status.
+			lastReplicas := 1
+			patch := makeReplicasPatch(uobj, groupVersionKind, int32(lastReplicas))
+			err = cronctx.reconciler.Patch(ctx, patch, client.Apply, &client.PatchOptions{
+				FieldManager: "application/apply-patch",
+				Force:        pointer.Bool(true),
 			})
 			if err != nil {
 				return err
 			}
+			logger.Info("Patched the resource.")
 			return nil
 		})
 		if err != nil {
@@ -119,37 +127,89 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 
 func (cronctx *CronContext) endLending(ctx context.Context) error {
 	logger := log.FromContext(ctx)
-	logger.Info("End lending")
+	logger.Info(fmt.Sprintf("End lending of %s/%s", cronctx.lendingconfig.Namespace, cronctx.lendingconfig.Name))
 
 	for _, target := range cronctx.lendingconfig.Spec.Targets {
-		groupVersion, err := schema.ParseGroupVersion(target.APIVersion)
+		groupVersionKind, err := getGroupVersionKind(target)
 		if err != nil {
 			return err
 		}
-		patch := &unstructured.Unstructured{}
-		patch.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   groupVersion.Group,
-			Version: groupVersion.Version,
-			Kind:    target.Kind,
-		})
-		patch.SetNamespace(cronctx.lendingconfig.Namespace)
-		if target.Name != nil {
-			patch.SetName(*target.Name)
-		}
-		patch.UnstructuredContent()["spec"] = map[string]interface{}{
-			"replicas": pointer.Int32(0),
-		}
+		objs := &unstructured.Unstructured{}
+		objs.SetGroupVersionKind(groupVersionKind)
 
-		logger.Info(fmt.Sprintf("Patch %s %s/%s", patch.GetObjectKind().GroupVersionKind(), patch.GetNamespace(), patch.GetName()))
-		err = cronctx.reconciler.Patch(ctx, patch, client.Apply, &client.PatchOptions{
-			Force: pointer.Bool(true),
+		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: cronctx.lendingconfig.Namespace})
+		if err != nil {
+			return err
+		}
+		err = objs.EachListItem(func(obj runtime.Object) error {
+			uobj := obj.(*unstructured.Unstructured)
+			logger.Info(fmt.Sprintf("Patch %s %s/%s", groupVersionKind, uobj.GetNamespace(), uobj.GetName()))
+
+			replicas, err := getReplicas(uobj)
+			if err != nil {
+				return err
+			}
+			if replicas != nil && *replicas == 0 {
+				logger.Info("Skipped the already running resource.")
+				return nil
+			}
+			annotations := uobj.GetAnnotations()
+			if annotations[annotationNameSkip] == "true" {
+				logger.Info("Skipped the annotated resource.")
+				return nil
+			}
+			// TODO: Save the current replicas in the status.
+			lastReplicas := 0
+			patch := makeReplicasPatch(uobj, groupVersionKind, int32(lastReplicas))
+			err = cronctx.reconciler.Patch(ctx, patch, client.Apply, &client.PatchOptions{
+				FieldManager: "application/apply-patch",
+				Force:        pointer.Bool(true),
+			})
+			if err != nil {
+				return err
+			}
+			logger.Info("Patched the resource.")
+			return nil
 		})
 		if err != nil {
 			return err
 		}
 	}
-
 	cronctx.reconciler.Recorder.Event(cronctx.lendingconfig.ToCompatible(), corev1.EventTypeNormal, LendingEnded, "Lending ended.")
 
 	return nil
+}
+
+func getGroupVersionKind(obj v1alpha1.Target) (schema.GroupVersionKind, error) {
+	groupVersion, err := schema.ParseGroupVersion(obj.APIVersion)
+	if err != nil {
+		return schema.GroupVersionKind{}, err
+	}
+	return groupVersion.WithKind(obj.Kind), nil
+
+}
+
+func getReplicas(uobj *unstructured.Unstructured) (*int32, error) {
+	if uobj.UnstructuredContent()["spec"] != nil {
+		spec, ok := uobj.UnstructuredContent()["spec"].(map[string]interface{})
+		if ok && spec["replicas"] != nil {
+			replicas, ok := spec["replicas"].(*int32)
+			if ok {
+				return replicas, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("The resource doesn't have replicas field.")
+}
+
+func makeReplicasPatch(uobj *unstructured.Unstructured, groupVersionKind schema.GroupVersionKind, replicas int32) *unstructured.Unstructured {
+	patch := &unstructured.Unstructured{}
+	// NOTE: obj.GetObjectKind().GroupVersionKind() is empty unexpextedly.
+	patch.SetGroupVersionKind(groupVersionKind)
+	patch.SetNamespace(uobj.GetNamespace())
+	patch.SetName(uobj.GetName())
+	patch.UnstructuredContent()["spec"] = map[string]interface{}{
+		"replicas": replicas,
+	}
+	return patch
 }

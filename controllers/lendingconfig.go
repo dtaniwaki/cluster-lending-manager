@@ -36,7 +36,7 @@ var hoursPattern = regexp.MustCompile(`(\d{2}):(\d{2}) *(am|pm)?`)
 
 type LendingConfigEvent = string
 
-const annotationNameSkip = "cron-hpa.dtaniwaki.github.com/skip"
+const annotationNameSkip = "clusterlendingmanager.dtaniwaki.github.com/skip"
 
 const (
 	SchedulesUpdated LendingConfigEvent = "SchedulesUpdated"
