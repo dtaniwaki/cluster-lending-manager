@@ -28,6 +28,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 )
 
 type LendingConfig clusterlendingmanagerv1alpha1.LendingConfig
@@ -177,11 +178,13 @@ func (config *LendingConfig) ToNamespacedName() types.NamespacedName {
 func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, dayOfWeek string, schedules []clusterlendingmanagerv1alpha1.Schedule) ([]CronItem, error) {
 	res := []CronItem{}
 	for _, hours := range schedules {
+		var startTimeMinutes *int32
 		if hours.Start != nil {
 			hour, minute, err := parseHours(*hours.Start)
 			if err != nil {
 				return nil, err
 			}
+			startTimeMinutes = pointer.Int32Ptr(60*hour + minute)
 			tsz := fmt.Sprintf("CRON_TZ=%s %d %d * * %s", config.Spec.Timezone, minute, hour, dayOfWeek)
 			res = append(res, CronItem{Cron: tsz, Job: NewCronContext(
 				reconciler, config, LendingStart,
@@ -191,6 +194,9 @@ func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, dayOf
 			hour, minute, err := parseHours(*hours.End)
 			if err != nil {
 				return nil, err
+			}
+			if startTimeMinutes != nil && 60*hour+minute <= *startTimeMinutes {
+				return nil, fmt.Errorf("The end time must be later than the start time.")
 			}
 			tsz := fmt.Sprintf("CRON_TZ=%s %d %d * * %s", config.Spec.Timezone, minute, hour, dayOfWeek)
 			res = append(res, CronItem{Cron: tsz, Job: NewCronContext(
