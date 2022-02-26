@@ -54,6 +54,12 @@ func (cronctx *CronContext) Run() {
 	ctx = context.WithValue(ctx, CTX_VALUE_NAMESPACE, cronctx.lendingconfig.Namespace)
 	logger := log.FromContext(ctx)
 
+	err := cronctx.reconciler.Get(ctx, cronctx.lendingconfig.ToNamespacedName(), cronctx.lendingconfig.ToCompatible())
+	if err != nil {
+		logger.Error(err, "Failed to run a cron job")
+		return
+	}
+
 	if err := cronctx.run(ctx); err != nil {
 		logger.Error(err, "Failed to run a cron job")
 	}
@@ -71,9 +77,11 @@ func (cronctx *CronContext) run(ctx context.Context) error {
 
 func (cronctx *CronContext) startLending(ctx context.Context) error {
 	logger := log.FromContext(ctx)
-	logger.Info(fmt.Sprintf("Start lending of %s/%s", cronctx.lendingconfig.Namespace, cronctx.lendingconfig.Name))
+	logger.Info("Start lending")
 
-	for _, target := range cronctx.lendingconfig.Spec.Targets {
+	lendingconfig := cronctx.lendingconfig.ToCompatible().DeepCopyObject().(*v1alpha1.LendingConfig)
+
+	for _, target := range lendingconfig.Spec.Targets {
 		groupVersionKind, err := getGroupVersionKind(target)
 		if err != nil {
 			return err
@@ -81,7 +89,7 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 		objs := &unstructured.Unstructured{}
 		objs.SetGroupVersionKind(groupVersionKind)
 
-		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: cronctx.lendingconfig.Namespace})
+		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: lendingconfig.Namespace})
 		if err != nil {
 			return err
 		}
@@ -105,9 +113,23 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 				logger.Info("Skipped the annotated resource.")
 				return nil
 			}
-			// TODO: Restore the last replicas in the status.
-			lastReplicas := 1
-			patch := makeReplicasPatch(uobj, groupVersionKind, int32(lastReplicas))
+
+			var lastReplicas *int64
+			for _, ref := range lendingconfig.Status.LendingReferences {
+				if ref.ObjectReference.APIVersion == target.APIVersion &&
+					ref.ObjectReference.Kind == target.Kind &&
+					ref.ObjectReference.Name == uobj.GetName() {
+					lastReplicas = &ref.Replicas
+					logger.Info(fmt.Sprintf("Found last replicas=%d.", ref.Replicas))
+					break
+				}
+			}
+			if lastReplicas == nil {
+				logger.Info("Skipped the unlended resource.")
+				return nil
+			}
+
+			patch := makeReplicasPatch(uobj, groupVersionKind, int64(*lastReplicas))
 			err = cronctx.reconciler.Patch(ctx, patch, client.Apply, &client.PatchOptions{
 				FieldManager: "application/apply-patch",
 				Force:        pointer.Bool(true),
@@ -123,16 +145,25 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 		}
 	}
 
-	cronctx.reconciler.Recorder.Event(cronctx.lendingconfig.ToCompatible(), corev1.EventTypeNormal, LendingStarted, "Lending started.")
+	lendingconfig.Status.LendingReferences = []v1alpha1.LendingReference{}
+	err := cronctx.reconciler.Status().Update(ctx, lendingconfig, &client.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+
+	cronctx.reconciler.Recorder.Event(lendingconfig, corev1.EventTypeNormal, LendingStarted, "Lending started.")
 
 	return nil
 }
 
 func (cronctx *CronContext) endLending(ctx context.Context) error {
 	logger := log.FromContext(ctx)
-	logger.Info(fmt.Sprintf("End lending of %s/%s", cronctx.lendingconfig.Namespace, cronctx.lendingconfig.Name))
+	logger.Info("End lending")
 
-	for _, target := range cronctx.lendingconfig.Spec.Targets {
+	lendingconfig := cronctx.lendingconfig.ToCompatible().DeepCopyObject().(*v1alpha1.LendingConfig)
+	lendingconfig.Status.LendingReferences = []v1alpha1.LendingReference{}
+
+	for _, target := range lendingconfig.Spec.Targets {
 		groupVersionKind, err := getGroupVersionKind(target)
 		if err != nil {
 			return err
@@ -140,7 +171,7 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 		objs := &unstructured.Unstructured{}
 		objs.SetGroupVersionKind(groupVersionKind)
 
-		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: cronctx.lendingconfig.Namespace})
+		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: lendingconfig.Namespace})
 		if err != nil {
 			return err
 		}
@@ -164,9 +195,18 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 				logger.Info("Skipped the annotated resource.")
 				return nil
 			}
-			// TODO: Save the current replicas in the status.
-			lastReplicas := 0
-			patch := makeReplicasPatch(uobj, groupVersionKind, int32(lastReplicas))
+
+			lendingconfig.Status.LendingReferences = append(lendingconfig.Status.LendingReferences, v1alpha1.LendingReference{
+				ObjectReference: v1alpha1.ObjectReference{
+					Name:       uobj.GetName(),
+					APIVersion: target.APIVersion,
+					Kind:       target.Kind,
+				},
+				Replicas: replicas,
+			})
+			logger.Info(fmt.Sprintf("Save replicas=%d.", replicas))
+
+			patch := makeReplicasPatch(uobj, groupVersionKind, int64(0))
 			err = cronctx.reconciler.Patch(ctx, patch, client.Apply, &client.PatchOptions{
 				FieldManager: "application/apply-patch",
 				Force:        pointer.Bool(true),
@@ -181,7 +221,13 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 			return err
 		}
 	}
-	cronctx.reconciler.Recorder.Event(cronctx.lendingconfig.ToCompatible(), corev1.EventTypeNormal, LendingEnded, "Lending ended.")
+
+	err := cronctx.reconciler.Status().Update(ctx, lendingconfig, &client.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+
+	cronctx.reconciler.Recorder.Event(lendingconfig, corev1.EventTypeNormal, LendingEnded, "Lending ended.")
 
 	return nil
 }
@@ -195,7 +241,7 @@ func getGroupVersionKind(obj v1alpha1.Target) (schema.GroupVersionKind, error) {
 
 }
 
-func makeReplicasPatch(uobj *unstructured.Unstructured, groupVersionKind schema.GroupVersionKind, replicas int32) *unstructured.Unstructured {
+func makeReplicasPatch(uobj *unstructured.Unstructured, groupVersionKind schema.GroupVersionKind, replicas int64) *unstructured.Unstructured {
 	patch := &unstructured.Unstructured{}
 	// NOTE: obj.GetObjectKind().GroupVersionKind() is empty unexpextedly.
 	patch.SetGroupVersionKind(groupVersionKind)

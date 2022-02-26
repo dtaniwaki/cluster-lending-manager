@@ -17,7 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -76,17 +75,29 @@ type LendingConfigSpec struct {
 	Targets []Target `json:"targets,omitempty"`
 }
 
-// LastChange is ...
-type LastChange struct {
-	// TargetRef is ...
-	TargetRef corev1.ObjectReference `json:"targetRef,omitempty"`
+// ObjectReference contains enough information to let you locate the
+// typed referenced object inside the same namespace.
+type ObjectReference struct {
+	// APIVersion is ...
+	APIVersion string `json:"apiVersion,omitempty"`
+	// Kind is ...
+	Kind string `json:"kind,omitempty"`
+	// Name is ...
+	Name string `json:"name,omitempty"`
+}
+
+// LendingReference is ...
+type LendingReference struct {
+	// ObjectReference is ...
+	ObjectReference `json:"objectReference,omitempty"`
 	// Replicas is ...
-	Replicas int32 `json:"replicas,omitempty"`
+	Replicas int64 `json:"replicas,omitempty"`
 }
 
 // LendingConfigStatus defines the observed state of LendingConfig
 type LendingConfigStatus struct {
-	LastChanges []LastChange `json:"lastChanges,omitempty"`
+	// LendingReferences is ...
+	LendingReferences []LendingReference `json:"objectReferences,omitempty"`
 }
 
 //+kubebuilder:object:root=true
