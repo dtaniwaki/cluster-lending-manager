@@ -9,6 +9,8 @@ jobs:
       with:
         go-version: ^1.17
       id: go
+    - name: check go version
+      run: go version
     - name: check out
       uses: actions/checkout@v2
     - name: before cache
