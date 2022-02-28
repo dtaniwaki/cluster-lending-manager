@@ -2,7 +2,7 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: LendingConfigs.clusterlendingmanager.dtaniwaki.github.com
+  name: lendingconfigs.clusterlendingmanager.dtaniwaki.github.com
 spec:
   conversion:
     strategy: Webhook

@@ -18,7 +18,7 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: LendingConfig is the Schema for the LendingConfigs API
+        description: LendingConfig is the Schema for the lendingconfigs API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation

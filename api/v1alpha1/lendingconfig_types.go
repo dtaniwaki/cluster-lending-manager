@@ -103,7 +103,7 @@ type LendingConfigStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// LendingConfig is the Schema for the LendingConfigs API
+// LendingConfig is the Schema for the lendingconfigs API
 type LendingConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

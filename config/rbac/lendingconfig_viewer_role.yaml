@@ -1,4 +1,4 @@
-# permissions for end users to view LendingConfigs.
+# permissions for end users to view lendingconfigs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -7,7 +7,7 @@ rules:
 - apiGroups:
   - clusterlendingmanager.dtaniwaki.github.com
   resources:
-  - LendingConfigs
+  - lendingconfigs
   verbs:
   - get
   - list
@@ -15,6 +15,6 @@ rules:
 - apiGroups:
   - clusterlendingmanager.dtaniwaki.github.com
   resources:
-  - LendingConfigs/status
+  - lendingconfigs/status
   verbs:
   - get
