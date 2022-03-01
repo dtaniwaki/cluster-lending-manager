@@ -56,7 +56,7 @@ func (cronctx *CronContext) Run() {
 
 	err := cronctx.reconciler.Get(ctx, cronctx.lendingconfig.ToNamespacedName(), cronctx.lendingconfig.ToCompatible())
 	if err != nil {
-		logger.Error(err, "Failed to run a cron job")
+		logger.Error(err, "Failed to get a cron job")
 		return
 	}
 
