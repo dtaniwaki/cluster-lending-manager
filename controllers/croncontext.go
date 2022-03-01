@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/dtaniwaki/cluster-lending-manager/api/v1alpha1"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -73,7 +74,7 @@ func (cronctx *CronContext) run(ctx context.Context) error {
 	} else if cronctx.event == LendingEnd {
 		return cronctx.endLending(ctx)
 	} else {
-		return fmt.Errorf("Unknown event %s", cronctx.event)
+		return errors.New(fmt.Sprintf("Unknown event %s", cronctx.event))
 	}
 }
 
@@ -93,7 +94,7 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 
 		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: lendingconfig.Namespace})
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		err = objs.EachListItem(func(obj runtime.Object) error {
 			uobj := obj.(*unstructured.Unstructured)
@@ -101,7 +102,7 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 
 			replicas, found, err := unstructured.NestedInt64(uobj.UnstructuredContent(), "spec", "replicas")
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 			if !found {
 				return fmt.Errorf("The resource doesn't have replcias field.")
@@ -137,7 +138,7 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 				Force:        pointer.Bool(true),
 			})
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 			logger.Info("Patched the resource.")
 			return nil
@@ -150,7 +151,7 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 	lendingconfig.Status.LendingReferences = []v1alpha1.LendingReference{}
 	err := cronctx.reconciler.Status().Update(ctx, lendingconfig, &client.UpdateOptions{})
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	cronctx.reconciler.Recorder.Event(lendingconfig, corev1.EventTypeNormal, LendingStarted, "Lending started.")
@@ -175,7 +176,7 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 
 		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: lendingconfig.Namespace})
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		err = objs.EachListItem(func(obj runtime.Object) error {
 			uobj := obj.(*unstructured.Unstructured)
@@ -183,7 +184,7 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 
 			replicas, found, err := unstructured.NestedInt64(uobj.UnstructuredContent(), "spec", "replicas")
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 			if !found {
 				return fmt.Errorf("The resource doesn't have replcias field.")
@@ -214,7 +215,7 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 				Force:        pointer.Bool(true),
 			})
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 			logger.Info("Patched the resource.")
 			return nil
@@ -226,7 +227,7 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 
 	err := cronctx.reconciler.Status().Update(ctx, lendingconfig, &client.UpdateOptions{})
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	cronctx.reconciler.Recorder.Event(lendingconfig, corev1.EventTypeNormal, LendingEnded, "Lending ended.")
@@ -237,7 +238,7 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 func getGroupVersionKind(obj v1alpha1.Target) (schema.GroupVersionKind, error) {
 	groupVersion, err := schema.ParseGroupVersion(obj.APIVersion)
 	if err != nil {
-		return schema.GroupVersionKind{}, err
+		return schema.GroupVersionKind{}, errors.WithStack(err)
 	}
 	return groupVersion.WithKind(obj.Kind), nil
 

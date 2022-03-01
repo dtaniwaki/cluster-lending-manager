@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -62,7 +63,7 @@ func (c *Cron) Add(namespacedName types.NamespacedName, cronItems []CronItem) er
 	for _, item := range cronItems {
 		entryId, err := c.cron.AddJob(item.Cron, item.Job)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		entries = append(entries, entryId)
 	}

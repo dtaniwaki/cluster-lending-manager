@@ -18,13 +18,13 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 
 	clusterlendingmanagerv1alpha1 "github.com/dtaniwaki/cluster-lending-manager/api/v1alpha1"
+	"github.com/pkg/errors"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -159,7 +159,7 @@ func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *Le
 
 	err := reconciler.Cron.Add(config.ToNamespacedName(), items)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	reconciler.Recorder.Event(config.ToCompatible(), corev1.EventTypeNormal, SchedulesUpdated, "Schedules updated.")
@@ -196,7 +196,7 @@ func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, dayOf
 				return nil, err
 			}
 			if startTimeMinutes != nil && 60*hour+minute <= *startTimeMinutes {
-				return nil, fmt.Errorf("The end time must be later than the start time.")
+				return nil, errors.New("The end time must be later than the start time.")
 			}
 			tsz := fmt.Sprintf("CRON_TZ=%s %d %d * * %s", config.Spec.Timezone, minute, hour, dayOfWeek)
 			res = append(res, CronItem{Cron: tsz, Job: NewCronContext(
@@ -214,11 +214,11 @@ func parseHours(hours string) (int32, int32, error) {
 	}
 	hour, err := strconv.Atoi(res[1])
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, errors.WithStack(err)
 	}
 	minute, err := strconv.Atoi(res[2])
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, errors.WithStack(err)
 	}
 	if res[3] == "pm" {
 		hour += 12
