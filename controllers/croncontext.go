@@ -32,33 +32,35 @@ import (
 
 type CronContext struct {
 	reconciler    *LendingConfigReconciler
-	lendingconfig *LendingConfig
+	lendingConfig *LendingConfig
 	event         LendingEvent
 }
 
 func NewCronContext(
 	reconciler *LendingConfigReconciler,
-	lendingconfig *LendingConfig,
+	lendingConfig *LendingConfig,
 	event LendingEvent,
 ) *CronContext {
 	return &CronContext{
 		reconciler,
-		lendingconfig,
+		lendingConfig,
 		event,
 	}
 }
 
 func (cronctx *CronContext) Run() {
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, CTX_VALUE_NAME, cronctx.lendingconfig.Name)
-	ctx = context.WithValue(ctx, CTX_VALUE_NAMESPACE, cronctx.lendingconfig.Namespace)
+	ctx = context.WithValue(ctx, CTX_VALUE_NAME, cronctx.lendingConfig.Name)
+	ctx = context.WithValue(ctx, CTX_VALUE_NAMESPACE, cronctx.lendingConfig.Namespace)
 	logger := log.FromContext(ctx)
 
-	err := cronctx.reconciler.Get(ctx, cronctx.lendingconfig.ToNamespacedName(), cronctx.lendingconfig.ToCompatible())
+	lendingConfig := &LendingConfig{}
+	err := cronctx.reconciler.Get(ctx, cronctx.lendingConfig.ToNamespacedName(), lendingConfig.ToCompatible())
 	if err != nil {
 		logger.Error(err, "Failed to get a cron job")
 		return
 	}
+	cronctx.lendingConfig = lendingConfig
 
 	if err := cronctx.run(ctx); err != nil {
 		logger.Error(err, "Failed to run a cron job")
@@ -79,7 +81,7 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 	logger := log.FromContext(ctx)
 	logger.Info("Start lending")
 
-	lendingconfig := cronctx.lendingconfig.ToCompatible().DeepCopyObject().(*v1alpha1.LendingConfig)
+	lendingconfig := cronctx.lendingConfig.ToCompatible().DeepCopyObject().(*v1alpha1.LendingConfig)
 
 	for _, target := range lendingconfig.Spec.Targets {
 		groupVersionKind, err := getGroupVersionKind(target)
@@ -160,7 +162,7 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 	logger := log.FromContext(ctx)
 	logger.Info("End lending")
 
-	lendingconfig := cronctx.lendingconfig.ToCompatible().DeepCopyObject().(*v1alpha1.LendingConfig)
+	lendingconfig := cronctx.lendingConfig.ToCompatible().DeepCopyObject().(*v1alpha1.LendingConfig)
 	lendingconfig.Status.LendingReferences = []v1alpha1.LendingReference{}
 
 	for _, target := range lendingconfig.Spec.Targets {
