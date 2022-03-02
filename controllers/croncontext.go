@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/dtaniwaki/cluster-lending-manager/api/v1alpha1"
 	"github.com/pkg/errors"
@@ -30,6 +31,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+type GlobalCronContext struct {
+	mu sync.Mutex
+}
+
+var gCronContext *GlobalCronContext
+
+func init() {
+	gCronContext = &GlobalCronContext{}
+}
 
 type CronContext struct {
 	reconciler    *LendingConfigReconciler
@@ -55,20 +66,15 @@ func (cronctx *CronContext) Run() {
 	ctx = context.WithValue(ctx, CTX_VALUE_NAMESPACE, cronctx.lendingConfig.Namespace)
 	logger := log.FromContext(ctx)
 
-	lendingConfig := &LendingConfig{}
-	err := cronctx.reconciler.Get(ctx, cronctx.lendingConfig.ToNamespacedName(), lendingConfig.ToCompatible())
-	if err != nil {
-		logger.Error(err, "Failed to get a cron job")
-		return
-	}
-	cronctx.lendingConfig = lendingConfig
-
 	if err := cronctx.run(ctx); err != nil {
 		logger.Error(err, "Failed to run a cron job")
 	}
 }
 
 func (cronctx *CronContext) run(ctx context.Context) error {
+	gCronContext.mu.Lock()
+	defer gCronContext.mu.Unlock()
+
 	if cronctx.event == LendingStart {
 		return cronctx.startLending(ctx)
 	} else if cronctx.event == LendingEnd {
@@ -82,9 +88,13 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 	logger := log.FromContext(ctx)
 	logger.Info("Start lending")
 
-	lendingconfig := cronctx.lendingConfig.ToCompatible().DeepCopyObject().(*v1alpha1.LendingConfig)
+	lendingConfig := &LendingConfig{}
+	err := cronctx.reconciler.Get(ctx, cronctx.lendingConfig.ToNamespacedName(), lendingConfig.ToCompatible())
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
-	for _, target := range lendingconfig.Spec.Targets {
+	for _, target := range lendingConfig.Spec.Targets {
 		groupVersionKind, err := getGroupVersionKind(target)
 		if err != nil {
 			return err
@@ -92,7 +102,7 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 		objs := &unstructured.Unstructured{}
 		objs.SetGroupVersionKind(groupVersionKind)
 
-		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: lendingconfig.Namespace})
+		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: lendingConfig.Namespace})
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -118,7 +128,7 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 			}
 
 			var lastReplicas *int64
-			for _, ref := range lendingconfig.Status.LendingReferences {
+			for _, ref := range lendingConfig.Status.LendingReferences {
 				if ref.ObjectReference.APIVersion == target.APIVersion &&
 					ref.ObjectReference.Kind == target.Kind &&
 					ref.ObjectReference.Name == uobj.GetName() {
@@ -148,13 +158,14 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 		}
 	}
 
-	lendingconfig.Status.LendingReferences = []v1alpha1.LendingReference{}
-	err := cronctx.reconciler.Status().Update(ctx, lendingconfig, &client.UpdateOptions{})
+	lendingConfig.Status.LendingReferences = []v1alpha1.LendingReference{}
+
+	err = cronctx.reconciler.Status().Update(ctx, lendingConfig.ToCompatible(), &client.UpdateOptions{})
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	cronctx.reconciler.Recorder.Event(lendingconfig, corev1.EventTypeNormal, LendingStarted, "Lending started.")
+	cronctx.reconciler.Recorder.Event(lendingConfig.ToCompatible(), corev1.EventTypeNormal, LendingStarted, "Lending started.")
 
 	return nil
 }
@@ -163,18 +174,22 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 	logger := log.FromContext(ctx)
 	logger.Info("End lending")
 
-	lendingconfig := cronctx.lendingConfig.ToCompatible().DeepCopyObject().(*v1alpha1.LendingConfig)
-	lendingconfig.Status.LendingReferences = []v1alpha1.LendingReference{}
+	lendingConfig := &LendingConfig{}
+	err := cronctx.reconciler.Get(ctx, cronctx.lendingConfig.ToNamespacedName(), lendingConfig.ToCompatible())
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	lendingConfig.Status.LendingReferences = []v1alpha1.LendingReference{}
 
-	for _, target := range lendingconfig.Spec.Targets {
+	for _, target := range lendingConfig.Spec.Targets {
 		groupVersionKind, err := getGroupVersionKind(target)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		objs := &unstructured.Unstructured{}
 		objs.SetGroupVersionKind(groupVersionKind)
 
-		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: lendingconfig.Namespace})
+		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: lendingConfig.Namespace})
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -199,7 +214,7 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 				return nil
 			}
 
-			lendingconfig.Status.LendingReferences = append(lendingconfig.Status.LendingReferences, v1alpha1.LendingReference{
+			lendingConfig.Status.LendingReferences = append(lendingConfig.Status.LendingReferences, v1alpha1.LendingReference{
 				ObjectReference: v1alpha1.ObjectReference{
 					Name:       uobj.GetName(),
 					APIVersion: target.APIVersion,
@@ -225,12 +240,12 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 		}
 	}
 
-	err := cronctx.reconciler.Status().Update(ctx, lendingconfig, &client.UpdateOptions{})
+	err = cronctx.reconciler.Status().Update(ctx, lendingConfig.ToCompatible(), &client.UpdateOptions{})
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	cronctx.reconciler.Recorder.Event(lendingconfig, corev1.EventTypeNormal, LendingEnded, "Lending ended.")
+	cronctx.reconciler.Recorder.Event(lendingConfig.ToCompatible(), corev1.EventTypeNormal, LendingEnded, "Lending ended.")
 
 	return nil
 }
