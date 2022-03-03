@@ -20,6 +20,7 @@ spec:
     apiVersion: argoproj.io/v1alpha1
   timezone: "Asia/Tokyo"
   schedule:
+    always: false
     default:
       hours:
       - start: "10:00"
