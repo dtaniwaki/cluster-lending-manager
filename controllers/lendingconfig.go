@@ -23,10 +23,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dtaniwaki/cluster-lending-manager/api/v1alpha1"
 	clusterlendingmanagerv1alpha1 "github.com/dtaniwaki/cluster-lending-manager/api/v1alpha1"
 	"github.com/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 )
@@ -47,6 +52,10 @@ const (
 )
 
 func (config *LendingConfig) ClearSchedules(ctx context.Context, reconciler *LendingConfigReconciler) error {
+	logger := log.FromContext(ctx)
+
+	logger.Info("Clear schedules")
+
 	reconciler.Cron.Clear(config.ToNamespacedName())
 
 	reconciler.Recorder.Event(config.ToCompatible(), corev1.EventTypeNormal, SchedulesCleared, "Schedules cleared.")
@@ -55,7 +64,21 @@ func (config *LendingConfig) ClearSchedules(ctx context.Context, reconciler *Len
 }
 
 func (config *LendingConfig) UpdateSchedules(ctx context.Context, reconciler *LendingConfigReconciler) error {
+	logger := log.FromContext(ctx)
+
+	logger.Info("Update schedules")
+
 	reconciler.Cron.Clear(config.ToNamespacedName())
+
+	if config.Spec.Schedule.Always {
+		logger.Info("Allow always lend the cluster")
+		if err := config.ActivateTargetResources(ctx, reconciler); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	logger.Info("Set individual day schedules")
 
 	items := []CronItem{}
 
@@ -205,6 +228,143 @@ func (config *LendingConfig) getCrons(reconciler *LendingConfigReconciler, dayOf
 		}
 	}
 	return res, nil
+}
+
+func (config *LendingConfig) ActivateTargetResources(ctx context.Context, reconciler *LendingConfigReconciler) error {
+	logger := log.FromContext(ctx)
+
+	for _, target := range config.Spec.Targets {
+		groupVersionKind, err := getGroupVersionKind(target)
+		if err != nil {
+			return err
+		}
+		objs := &unstructured.Unstructured{}
+		objs.SetGroupVersionKind(groupVersionKind)
+
+		err = reconciler.List(ctx, objs, &client.ListOptions{Namespace: config.Namespace})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		err = objs.EachListItem(func(obj runtime.Object) error {
+			uobj := obj.(*unstructured.Unstructured)
+			logger.Info(fmt.Sprintf("Patch %s %s/%s", groupVersionKind, uobj.GetNamespace(), uobj.GetName()))
+
+			replicas, found, err := unstructured.NestedInt64(uobj.UnstructuredContent(), "spec", "replicas")
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			if !found {
+				return fmt.Errorf("The resource doesn't have replcias field.")
+			}
+			if replicas > 0 {
+				logger.Info("Skipped the already running resource.")
+				return nil
+			}
+			annotations := uobj.GetAnnotations()
+			if annotations[annotationNameSkip] == "true" {
+				logger.Info("Skipped the annotated resource.")
+				return nil
+			}
+
+			var lastReplicas *int64
+			for _, ref := range config.Status.LendingReferences {
+				if ref.ObjectReference.APIVersion == target.APIVersion &&
+					ref.ObjectReference.Kind == target.Kind &&
+					ref.ObjectReference.Name == uobj.GetName() {
+					lastReplicas = &ref.Replicas
+					logger.Info(fmt.Sprintf("Found last replicas=%d.", ref.Replicas))
+					break
+				}
+			}
+			if lastReplicas == nil {
+				logger.Info("Skipped the unlended resource.")
+				return nil
+			}
+
+			patch := makeReplicasPatch(uobj, groupVersionKind, int64(*lastReplicas))
+			err = reconciler.Patch(ctx, patch, client.Apply, &client.PatchOptions{
+				FieldManager: "application/apply-patch",
+				Force:        pointer.Bool(true),
+			})
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			logger.Info("Patched the resource.")
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (config *LendingConfig) DeactivateTargetResources(ctx context.Context, reconciler *LendingConfigReconciler) ([]v1alpha1.LendingReference, error) {
+	logger := log.FromContext(ctx)
+
+	lendingReferences := []v1alpha1.LendingReference{}
+
+	for _, target := range config.Spec.Targets {
+		groupVersionKind, err := getGroupVersionKind(target)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		objs := &unstructured.Unstructured{}
+		objs.SetGroupVersionKind(groupVersionKind)
+
+		err = reconciler.List(ctx, objs, &client.ListOptions{Namespace: config.Namespace})
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		err = objs.EachListItem(func(obj runtime.Object) error {
+			uobj := obj.(*unstructured.Unstructured)
+			logger.Info(fmt.Sprintf("Patch %s %s/%s", groupVersionKind, uobj.GetNamespace(), uobj.GetName()))
+
+			replicas, found, err := unstructured.NestedInt64(uobj.UnstructuredContent(), "spec", "replicas")
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			if !found {
+				return fmt.Errorf("The resource doesn't have replcias field.")
+			}
+			if replicas == 0 {
+				logger.Info("Skipped the already stopped resource.")
+				return nil
+			}
+			annotations := uobj.GetAnnotations()
+			if annotations[annotationNameSkip] == "true" {
+				logger.Info("Skipped the annotated resource.")
+				return nil
+			}
+
+			lendingReferences = append(lendingReferences, v1alpha1.LendingReference{
+				ObjectReference: v1alpha1.ObjectReference{
+					Name:       uobj.GetName(),
+					APIVersion: target.APIVersion,
+					Kind:       target.Kind,
+				},
+				Replicas: replicas,
+			})
+			logger.Info(fmt.Sprintf("Save replicas=%d.", replicas))
+
+			patch := makeReplicasPatch(uobj, groupVersionKind, int64(0))
+			err = reconciler.Patch(ctx, patch, client.Apply, &client.PatchOptions{
+				FieldManager: "application/apply-patch",
+				Force:        pointer.Bool(true),
+			})
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			logger.Info("Patched the resource.")
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return lendingReferences, nil
 }
 
 func parseHours(hours string) (int32, int32, error) {

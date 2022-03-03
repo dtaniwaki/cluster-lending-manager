@@ -93,7 +93,6 @@ func (r *LendingConfigReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	// Update the schedules.
 	logger.Info("Update schedules")
 	if err := config.UpdateSchedules(ctx, r); err != nil {
 		return ctrl.Result{}, err

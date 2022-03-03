@@ -53,6 +53,9 @@ type ScheduleSpec struct {
 	// Sunday is ...
 	Sunday *DaySchedule `json:"sunday,omitempty"`
 	// TODO: Support holidays.
+
+	// Always is ...
+	Always bool `json:"always,omitempty"`
 }
 
 // Target is ...

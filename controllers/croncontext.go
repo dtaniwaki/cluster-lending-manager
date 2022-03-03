@@ -25,9 +25,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -94,68 +92,9 @@ func (cronctx *CronContext) startLending(ctx context.Context) error {
 		return errors.WithStack(err)
 	}
 
-	for _, target := range lendingConfig.Spec.Targets {
-		groupVersionKind, err := getGroupVersionKind(target)
-		if err != nil {
-			return err
-		}
-		objs := &unstructured.Unstructured{}
-		objs.SetGroupVersionKind(groupVersionKind)
-
-		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: lendingConfig.Namespace})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		err = objs.EachListItem(func(obj runtime.Object) error {
-			uobj := obj.(*unstructured.Unstructured)
-			logger.Info(fmt.Sprintf("Patch %s %s/%s", groupVersionKind, uobj.GetNamespace(), uobj.GetName()))
-
-			replicas, found, err := unstructured.NestedInt64(uobj.UnstructuredContent(), "spec", "replicas")
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			if !found {
-				return fmt.Errorf("The resource doesn't have replcias field.")
-			}
-			if replicas > 0 {
-				logger.Info("Skipped the already running resource.")
-				return nil
-			}
-			annotations := uobj.GetAnnotations()
-			if annotations[annotationNameSkip] == "true" {
-				logger.Info("Skipped the annotated resource.")
-				return nil
-			}
-
-			var lastReplicas *int64
-			for _, ref := range lendingConfig.Status.LendingReferences {
-				if ref.ObjectReference.APIVersion == target.APIVersion &&
-					ref.ObjectReference.Kind == target.Kind &&
-					ref.ObjectReference.Name == uobj.GetName() {
-					lastReplicas = &ref.Replicas
-					logger.Info(fmt.Sprintf("Found last replicas=%d.", ref.Replicas))
-					break
-				}
-			}
-			if lastReplicas == nil {
-				logger.Info("Skipped the unlended resource.")
-				return nil
-			}
-
-			patch := makeReplicasPatch(uobj, groupVersionKind, int64(*lastReplicas))
-			err = cronctx.reconciler.Patch(ctx, patch, client.Apply, &client.PatchOptions{
-				FieldManager: "application/apply-patch",
-				Force:        pointer.Bool(true),
-			})
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			logger.Info("Patched the resource.")
-			return nil
-		})
-		if err != nil {
-			return err
-		}
+	err = lendingConfig.ActivateTargetResources(ctx, cronctx.reconciler)
+	if err != nil {
+		return err
 	}
 
 	lendingConfig.Status.LendingReferences = []v1alpha1.LendingReference{}
@@ -179,65 +118,15 @@ func (cronctx *CronContext) endLending(ctx context.Context) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	lendingConfig.Status.LendingReferences = []v1alpha1.LendingReference{}
 
-	for _, target := range lendingConfig.Spec.Targets {
-		groupVersionKind, err := getGroupVersionKind(target)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		objs := &unstructured.Unstructured{}
-		objs.SetGroupVersionKind(groupVersionKind)
+	lendingReferences, err := lendingConfig.DeactivateTargetResources(ctx, cronctx.reconciler)
+	if err != nil {
+		return err
+	}
 
-		err = cronctx.reconciler.List(ctx, objs, &client.ListOptions{Namespace: lendingConfig.Namespace})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		err = objs.EachListItem(func(obj runtime.Object) error {
-			uobj := obj.(*unstructured.Unstructured)
-			logger.Info(fmt.Sprintf("Patch %s %s/%s", groupVersionKind, uobj.GetNamespace(), uobj.GetName()))
-
-			replicas, found, err := unstructured.NestedInt64(uobj.UnstructuredContent(), "spec", "replicas")
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			if !found {
-				return fmt.Errorf("The resource doesn't have replcias field.")
-			}
-			if replicas == 0 {
-				logger.Info("Skipped the already stopped resource.")
-				return nil
-			}
-			annotations := uobj.GetAnnotations()
-			if annotations[annotationNameSkip] == "true" {
-				logger.Info("Skipped the annotated resource.")
-				return nil
-			}
-
-			lendingConfig.Status.LendingReferences = append(lendingConfig.Status.LendingReferences, v1alpha1.LendingReference{
-				ObjectReference: v1alpha1.ObjectReference{
-					Name:       uobj.GetName(),
-					APIVersion: target.APIVersion,
-					Kind:       target.Kind,
-				},
-				Replicas: replicas,
-			})
-			logger.Info(fmt.Sprintf("Save replicas=%d.", replicas))
-
-			patch := makeReplicasPatch(uobj, groupVersionKind, int64(0))
-			err = cronctx.reconciler.Patch(ctx, patch, client.Apply, &client.PatchOptions{
-				FieldManager: "application/apply-patch",
-				Force:        pointer.Bool(true),
-			})
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			logger.Info("Patched the resource.")
-			return nil
-		})
-		if err != nil {
-			return err
-		}
+	lendingConfig.Status.LendingReferences = lendingReferences
+	if err != nil {
+		return err
 	}
 
 	err = cronctx.reconciler.Status().Update(ctx, lendingConfig.ToCompatible(), &client.UpdateOptions{})

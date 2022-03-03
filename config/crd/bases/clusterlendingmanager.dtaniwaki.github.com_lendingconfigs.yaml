@@ -38,6 +38,9 @@ spec:
               schedule:
                 description: Schedules is ...
                 properties:
+                  always:
+                    description: Always is ...
+                    type: boolean
                   default:
                     description: Default is ...
                     properties:
