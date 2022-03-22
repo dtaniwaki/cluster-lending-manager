@@ -186,6 +186,10 @@ spec:
                     apiVersion:
                       description: APIVersion is ...
                       type: string
+                    defaultReplicas:
+                      description: DefaultReplicas
+                      format: int64
+                      type: integer
                     kind:
                       description: Kind is ...
                       type: string

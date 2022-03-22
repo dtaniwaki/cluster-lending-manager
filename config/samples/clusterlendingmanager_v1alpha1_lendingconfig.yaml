@@ -6,6 +6,7 @@ spec:
   targets:
   - kind: Deployment
     apiVersion: apps/v1
+    defaultReplicas: 1
   timezone: "Asia/Tokyo"
   schedule:
     default:

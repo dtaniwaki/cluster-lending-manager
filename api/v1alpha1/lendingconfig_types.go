@@ -66,6 +66,8 @@ type Target struct {
 	Kind string `json:"kind,omitempty"`
 	// Name is ...
 	Name *string `json:"name,omitempty"`
+	// DefaultReplicas
+	DefaultReplicas *int64 `json:"defaultReplicas,omitempty"`
 }
 
 // LendingConfigSpec defines the desired state of LendingConfig

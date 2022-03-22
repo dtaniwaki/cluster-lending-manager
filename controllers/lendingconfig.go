@@ -278,13 +278,23 @@ func (config *LendingConfig) ActivateTargetResources(ctx context.Context, reconc
 				}
 			}
 
-			if defaultReplicasStr, exists := annotations[annotationNameDefaultReplicas]; exists {
-				defaultReplicas, err := strconv.ParseInt(defaultReplicasStr, 10, 64)
-				if err != nil {
-					return errors.WithStack(err)
+			if lastReplicas == nil {
+				if defaultReplicasStr, exists := annotations[annotationNameDefaultReplicas]; exists {
+					defaultReplicas, err := strconv.ParseInt(defaultReplicasStr, 10, 64)
+					if err != nil {
+						return errors.WithStack(err)
+					}
+					logger.Info(fmt.Sprintf("Use per-resource default replicas=%d.", defaultReplicas))
+					lastReplicas = &defaultReplicas
 				}
-				logger.Info(fmt.Sprintf("Use default replicas=%d.", defaultReplicas))
-				lastReplicas = &defaultReplicas
+			}
+
+			if lastReplicas == nil {
+				if target.DefaultReplicas != nil {
+					defaultReplicas := *target.DefaultReplicas
+					logger.Info(fmt.Sprintf("Use target default replicas=%d.", defaultReplicas))
+					lastReplicas = &defaultReplicas
+				}
 			}
 
 			if lastReplicas == nil {
