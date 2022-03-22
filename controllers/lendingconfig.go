@@ -43,6 +43,7 @@ var hoursPattern = regexp.MustCompile(`(\d{2}):(\d{2}) *(am|pm)?`)
 type LendingConfigEvent = string
 
 const annotationNameSkip = "clusterlendingmanager.dtaniwaki.github.com/skip"
+const annotationNameDefaultReplicas = "clusterlendingmanager.dtaniwaki.github.com/default-replicas"
 
 const (
 	SchedulesUpdated LendingConfigEvent = "SchedulesUpdated"
@@ -276,6 +277,16 @@ func (config *LendingConfig) ActivateTargetResources(ctx context.Context, reconc
 					break
 				}
 			}
+
+			if defaultReplicasStr, exists := annotations[annotationNameDefaultReplicas]; exists {
+				defaultReplicas, err := strconv.ParseInt(defaultReplicasStr, 10, 64)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				logger.Info(fmt.Sprintf("Use default replicas=%d.", defaultReplicas))
+				lastReplicas = &defaultReplicas
+			}
+
 			if lastReplicas == nil {
 				logger.Info("Skipped the unlended resource.")
 				return nil
